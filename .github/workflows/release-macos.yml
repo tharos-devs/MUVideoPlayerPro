@@ -1,0 +1,109 @@
+name: Release macOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (ex: 0.1.0) -- laissé vide, celle de CMakeLists.txt est utilisée (+ le SHA court)"
+        required: false
+        type: string
+  push:
+    tags:
+      - "v*.*.*"
+
+# Requis pour que softprops/action-gh-release puisse créer/publier une
+# Release avec le GITHUB_TOKEN par défaut.
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    # Apple Silicon (arm64) uniquement pour l'instant -- pas de build Intel
+    # (x86_64) : nécessiterait soit un second run soit un binaire universel
+    # (compliqué à obtenir proprement avec des dylibs Homebrew mono-arch),
+    # laissé pour un suivi ultérieur si un jour nécessaire.
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION=$(sed -n -E 's/^project\([A-Za-z0-9_]+ VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+            VERSION="${VERSION}-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version résolue : $VERSION"
+
+      - name: Install build dependencies
+        run: brew install ninja pkg-config ffmpeg dylibbundler
+
+      - name: Cache JUCE (FetchContent)
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: macos-fetchcontent-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+
+      # Rend le .vst3 autonome (indépendant de tout Homebrew présent chez
+      # l'utilisateur final) en embarquant les dylibs FFmpeg dont il dépend.
+      - name: Bundle FFmpeg dylibs into the plugin
+        run: |
+          VST3_PATH="build/MUVideoPlayerPro_artefacts/Release/VST3/MUVideoPlayerPro.vst3"
+          mkdir -p "$VST3_PATH/Contents/Frameworks"
+          dylibbundler -od -b \
+            -x "$VST3_PATH/Contents/MacOS/MUVideoPlayerPro" \
+            -d "$VST3_PATH/Contents/Frameworks" \
+            -p "@executable_path/../Frameworks/"
+          # Pas de --deep : dylibbundler a déjà signé individuellement chaque
+          # dylib qu'il a modifiée -- les re-signer une seconde fois via
+          # --deep a planté en pratique ("internal error in Code Signing
+          # subsystem") sur un gros dylib (libavcodec). Un sign non-deep du
+          # bundle ne fait que sceller ses propres ressources
+          # (Contents/_CodeSignature/CodeResources), sans retoucher aux
+          # signatures déjà valides des dylibs imbriquées.
+          codesign --force --sign - "$VST3_PATH"
+          echo "VST3_PATH=$VST3_PATH" >> "$GITHUB_ENV"
+
+      - name: Build .pkg installer
+        run: |
+          chmod +x packaging/macos/build-pkg.sh packaging/macos/postinstall
+          PKG_NAME="MUVideoPlayerPro-v${{ steps.version.outputs.version }}.pkg"
+          ./packaging/macos/build-pkg.sh "$VST3_PATH" "${{ steps.version.outputs.version }}" "$PKG_NAME"
+          echo "PKG_NAME=$PKG_NAME" >> "$GITHUB_ENV"
+
+      - name: Zip
+        run: |
+          ZIP_NAME="MUVideoPlayerPro-v${{ steps.version.outputs.version }}-macOS.zip"
+          zip -j "$ZIP_NAME" "$PKG_NAME"
+          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUVideoPlayerPro-macOS
+          path: ${{ env.ZIP_NAME }}
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          files: ${{ env.ZIP_NAME }}
+          generate_release_notes: true

@@ -1,0 +1,19 @@
+build/
+build-*/
+.cache/
+*.o
+*.obj
+.DS_Store
+.rtk/
+.kilo/
+compile_commands.json
+Testing/
+
+# Artefacts de packaging générés par la CI (release-*.yml), pas des sources.
+vcpkg_installed/
+packaging/windows/vst3/
+*.pkg
+*.exe
+*.zip
+
+*.md

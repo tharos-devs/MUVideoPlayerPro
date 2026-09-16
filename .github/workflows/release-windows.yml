@@ -1,0 +1,128 @@
+name: Release Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (ex: 0.1.0) -- laissé vide, celle de CMakeLists.txt est utilisée (+ le SHA court)"
+        required: false
+        type: string
+  push:
+    tags:
+      - "v*.*.*"
+
+# Requis pour que softprops/action-gh-release puisse créer/publier une
+# Release avec le GITHUB_TOKEN par défaut.
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    # x64 uniquement -- les hôtes VST3 modernes sont tous en 64 bits.
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "push") {
+            $version = "${{ github.ref_name }}" -replace '^v', ''
+          } elseif ("${{ inputs.version }}" -ne "") {
+            $version = "${{ inputs.version }}"
+          } else {
+            $content = Get-Content CMakeLists.txt -Raw
+            $content -match 'project\([A-Za-z0-9_]+ VERSION (\d+\.\d+\.\d+)' | Out-Null
+            $baseVersion = $matches[1]
+            $shortSha = (git rev-parse --short HEAD).Trim()
+            $version = "$baseVersion-$shortSha"
+          }
+          Write-Host "Version résolue : $version"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      # NOTE : ce projet n'a jamais été compilé sur Windows avant ce workflow
+      # -- premier jet, à corriger au besoin selon ce que le run révèle
+      # (chemins exacts de vcpkg_installed/, structure du bundle .vst3 sous
+      # Contents/x86_64-win, etc.).
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: "vcpkg.json"
+
+      - name: Cache JUCE (FetchContent)
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: windows-fetchcontent-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Run tests
+        shell: pwsh
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      # Windows n'a pas d'équivalent de rpath -- les DLL FFmpeg doivent être
+      # à côté du binaire du plugin pour être trouvées au chargement.
+      - name: Copy FFmpeg DLLs next to the plugin binary
+        shell: pwsh
+        run: |
+          $vst3BinDir = "build/MUVideoPlayerPro_artefacts/Release/VST3/MUVideoPlayerPro.vst3/Contents/x86_64-win"
+          $patterns = @("avcodec-*.dll", "avformat-*.dll", "avutil-*.dll", "swscale-*.dll", "swresample-*.dll")
+          foreach ($pattern in $patterns) {
+            Get-ChildItem -Path . -Recurse -Filter $pattern -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -notmatch "\\debug\\" } |
+              ForEach-Object {
+                Write-Host "Copie de $($_.FullName)"
+                Copy-Item $_.FullName -Destination $vst3BinDir -Force
+              }
+          }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          New-Item -ItemType Directory -Force -Path "packaging/windows/vst3" | Out-Null
+          Copy-Item -Recurse -Force "build/MUVideoPlayerPro_artefacts/Release/VST3/MUVideoPlayerPro.vst3" "packaging/windows/vst3/"
+
+          # GitHub héberge NSIS sur ses runners windows-latest, normalement déjà
+          # dans PATH -- repli sur l'emplacement d'installation par défaut sinon.
+          $makensis = Get-Command makensis.exe -ErrorAction SilentlyContinue
+          $makensisPath = if ($makensis) { $makensis.Source } else { "C:\Program Files (x86)\NSIS\makensis.exe" }
+
+          & $makensisPath "/DVERSION=$version" "packaging/windows/installer.nsi"
+          $setupName = "MUVideoPlayerPro-Setup-v$version.exe"
+          echo "SETUP_NAME=$setupName" >> $env:GITHUB_ENV
+
+      - name: Zip
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $zipName = "MUVideoPlayerPro-v$version-Windows.zip"
+          Compress-Archive -Path "packaging/windows/$env:SETUP_NAME" -DestinationPath $zipName
+          echo "ZIP_NAME=$zipName" >> $env:GITHUB_ENV
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUVideoPlayerPro-Windows
+          path: ${{ env.ZIP_NAME }}
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          files: ${{ env.ZIP_NAME }}
+          generate_release_notes: true

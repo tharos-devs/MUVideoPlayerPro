@@ -1,0 +1,11 @@
+{
+  "name": "muvideoplayerpro",
+  "version": "0.1.0",
+  "dependencies": [
+    {
+      "name": "ffmpeg",
+      "default-features": false,
+      "features": ["avcodec", "avformat", "swresample", "swscale"]
+    }
+  ]
+}

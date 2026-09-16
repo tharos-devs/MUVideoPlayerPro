@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Script de post-installation du .pkg MUVideoPlayerPro.
+#
+# Le plugin n'est pas signé/notarisé (pas de compte Apple Developer) : sans
+# ce script, macOS refuserait de charger le .vst3 fraîchement copié
+# ("endommagé, impossible à ouvrir") à cause de l'attribut de quarantaine
+# posé par le téléchargement, et de l'absence de toute signature valide.
+# Même principe que le postinstall d'AudioPlayer (~/AudioPlayer/src-tauri/
+# scripts/postinstall) : suppression de la quarantaine + signature ad-hoc
+# (identité "-", gratuite, aucun certificat requis).
+#
+# Pas de --deep ici : les dylibs FFmpeg embarquées dans Contents/Frameworks
+# sont déjà signées individuellement par dylibbundler au moment du build (cf.
+# release-macos.yml) -- les re-signer une seconde fois via --deep a fait
+# planter codesign en pratique ("internal error in Code Signing subsystem")
+# sur un gros dylib (libavcodec). Un sign non-deep du bundle suffit : il ne
+# fait que sceller les ressources du bundle lui-même (Contents/_CodeSignature/
+# CodeResources), sans retoucher aux signatures déjà valides des dylibs
+# imbriquées.
+
+VST3_PATH="/Library/Audio/Plug-Ins/VST3/MUVideoPlayerPro.vst3"
+
+logger "MUVideoPlayerPro postinstall: début"
+
+if [ -d "$VST3_PATH" ]; then
+    logger "MUVideoPlayerPro postinstall: plugin trouvé à $VST3_PATH"
+
+    if xattr -cr "$VST3_PATH" 2>/dev/null; then
+        logger "MUVideoPlayerPro postinstall: attributs de quarantaine supprimés"
+    else
+        logger "MUVideoPlayerPro postinstall: échec suppression quarantaine, on continue"
+    fi
+
+    if /usr/bin/codesign --force --sign - "$VST3_PATH" 2>/dev/null; then
+        logger "MUVideoPlayerPro postinstall: plugin signé avec succès (ad-hoc)"
+    else
+        logger "MUVideoPlayerPro postinstall: échec de la signature -- le plugin risque de ne pas se charger"
+    fi
+
+    logger "MUVideoPlayerPro postinstall: terminé"
+else
+    logger "MUVideoPlayerPro postinstall: ERREUR - plugin non trouvé à $VST3_PATH"
+    exit 1
+fi
+
+exit 0
