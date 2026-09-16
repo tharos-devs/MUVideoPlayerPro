@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (ex: 0.1.0)"
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*.*.*"
+
+# Requis pour que softprops/action-gh-release puisse créer le tag (en
+# workflow_dispatch) et publier la Release avec le GITHUB_TOKEN par défaut.
+permissions:
+  contents: write
+
+jobs:
+  determine-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version résolue : $VERSION"
+
+  build-macos:
+    needs: determine-version
+    uses: ./.github/workflows/build-macos.yml
+    with:
+      version: ${{ needs.determine-version.outputs.version }}
+
+  build-windows:
+    needs: determine-version
+    uses: ./.github/workflows/build-windows.yml
+    with:
+      version: ${{ needs.determine-version.outputs.version }}
+
+  release:
+    needs: [determine-version, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      # Les deux jobs de build uploadent chacun un seul artefact
+      # (MUVideoPlayerPro-macOS / MUVideoPlayerPro-Windows) contenant un
+      # .zip -- merge-multiple les regroupe tous les deux directement dans
+      # dist/ sans sous-dossiers.
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.determine-version.outputs.version }}
+          name: v${{ needs.determine-version.outputs.version }}
+          files: dist/*
+          generate_release_notes: true

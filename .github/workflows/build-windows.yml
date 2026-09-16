@@ -1,20 +1,19 @@
-name: Release Windows
+name: Build Windows
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version (ex: 0.1.0) -- laissé vide, celle de CMakeLists.txt est utilisée (+ le SHA court)"
+        description: "Version (ex: 0.1.0) -- laissée vide, celle de CMakeLists.txt est utilisée (+ le SHA court). Build uniquement : ne crée ni tag ni Release (voir le workflow \"Release\" pour ça)."
         required: false
         type: string
-  push:
-    tags:
-      - "v*.*.*"
-
-# Requis pour que softprops/action-gh-release puisse créer/publier une
-# Release avec le GITHUB_TOKEN par défaut.
-permissions:
-  contents: write
+  # Appelé par release.yml pour builder macOS et Windows en parallèle avant
+  # de publier une seule Release contenant les deux installateurs.
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
 
 jobs:
   build-windows:
@@ -29,9 +28,7 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          if ("${{ github.event_name }}" -eq "push") {
-            $version = "${{ github.ref_name }}" -replace '^v', ''
-          } elseif ("${{ inputs.version }}" -ne "") {
+          if ("${{ inputs.version }}" -ne "") {
             $version = "${{ inputs.version }}"
           } else {
             $content = Get-Content CMakeLists.txt -Raw
@@ -118,11 +115,3 @@ jobs:
         with:
           name: MUVideoPlayerPro-Windows
           path: ${{ env.ZIP_NAME }}
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: v${{ steps.version.outputs.version }}
-          files: ${{ env.ZIP_NAME }}
-          generate_release_notes: true
