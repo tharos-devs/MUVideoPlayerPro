@@ -18,7 +18,12 @@ on:
 jobs:
   build-windows:
     # x64 uniquement -- les hôtes VST3 modernes sont tous en 64 bits.
-    runs-on: windows-latest
+    # Label versionné (pas "windows-latest") : le générateur CMake plus bas
+    # est codé en dur sur "Visual Studio 17 2022", qui a cessé d'être
+    # disponible sur l'image pointée par "windows-latest" (échec en CI :
+    # "Generator Visual Studio 17 2022 could not find any instance of Visual
+    # Studio.").
+    runs-on: windows-2022
 
     steps:
       - name: Checkout
