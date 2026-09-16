@@ -84,13 +84,13 @@ jobs:
       - name: Build .pkg installer
         run: |
           chmod +x packaging/macos/build-pkg.sh packaging/macos/postinstall
-          PKG_NAME="MUVideoPlayerPro-v${{ steps.version.outputs.version }}.pkg"
+          PKG_NAME="MUVideoPlayerPro-v${{ steps.version.outputs.version }}-macOS-arm64.pkg"
           ./packaging/macos/build-pkg.sh "$VST3_PATH" "${{ steps.version.outputs.version }}" "$PKG_NAME"
           echo "PKG_NAME=$PKG_NAME" >> "$GITHUB_ENV"
 
       - name: Zip
         run: |
-          ZIP_NAME="MUVideoPlayerPro-v${{ steps.version.outputs.version }}-macOS.zip"
+          ZIP_NAME="MUVideoPlayerPro-v${{ steps.version.outputs.version }}-macOS-arm64.zip"
           zip -j "$ZIP_NAME" "$PKG_NAME"
           echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
 
