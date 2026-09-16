@@ -1,6 +1,7 @@
 {
   "name": "muvideoplayerpro",
   "version": "0.1.0",
+  "builtin-baseline": "e0a6b8572cf0ac716fdc11466522cf744e97e0bd",
   "dependencies": [
     {
       "name": "ffmpeg",
