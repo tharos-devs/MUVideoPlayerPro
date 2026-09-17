@@ -81,10 +81,15 @@ jobs:
         shell: pwsh
         run: |
           $vst3BinDir = "build/MUVideoPlayerPro_artefacts/Release/VST3/MUVideoPlayerPro.vst3/Contents/x86_64-win"
+          $vst3BinDirFull = (Resolve-Path $vst3BinDir).Path
           $patterns = @("avcodec-*.dll", "avformat-*.dll", "avutil-*.dll", "swscale-*.dll", "swresample-*.dll")
           foreach ($pattern in $patterns) {
+            # Le toolchain vcpkg déploie déjà automatiquement les DLLs de
+            # dépendances à côté du binaire buildé ("applocal" deployment) --
+            # on exclut cette copie déjà en place pour ne pas la copier sur
+            # elle-même.
             Get-ChildItem -Path . -Recurse -Filter $pattern -File -ErrorAction SilentlyContinue |
-              Where-Object { $_.FullName -notmatch "\\debug\\" } |
+              Where-Object { $_.FullName -notmatch "\\debug\\" -and $_.DirectoryName -ne $vst3BinDirFull } |
               ForEach-Object {
                 Write-Host "Copie de $($_.FullName)"
                 Copy-Item $_.FullName -Destination $vst3BinDir -Force
