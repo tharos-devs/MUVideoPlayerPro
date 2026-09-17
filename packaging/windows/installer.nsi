@@ -1,10 +1,18 @@
-; Installateur MUVideoPlayerPro (NSIS). VERSION est fourni en ligne de
-; commande par la CI : makensis /DVERSION=0.1.0 installer.nsi
+; Installateur MUVideoPlayerPro (NSIS). VERSION et FILEVERSION sont fournis
+; en ligne de commande par la CI :
+;   makensis /DVERSION=0.1.0 /DFILEVERSION=0.1.0.0 installer.nsi
+; FILEVERSION est une version purement numérique X.X.X.X (requise par
+; VIProductVersion), distincte de VERSION qui peut porter un suffixe
+; "-<sha>" en repli.
 ; Attend un dossier "vst3\MUVideoPlayerPro.vst3\" à côté de ce script
 ; (copié là par le workflow avant l'appel à makensis).
 
 !ifndef VERSION
   !define VERSION "0.0.0"
+!endif
+
+!ifndef FILEVERSION
+  !define FILEVERSION "0.0.0.0"
 !endif
 
 !include "MUI2.nsh"
@@ -17,7 +25,7 @@ RequestExecutionLevel admin
 ShowInstDetails show
 ShowUninstDetails show
 
-VIProductVersion "${VERSION}.0"
+VIProductVersion "${FILEVERSION}"
 VIAddVersionKey "ProductName" "MUVideoPlayerPro"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "FileVersion" "${VERSION}"

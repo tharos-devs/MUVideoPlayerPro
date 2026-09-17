@@ -100,6 +100,12 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.version }}"
+          # VIProductVersion (NSIS) exige un format strict X.X.X.X : on
+          # dérive une version purement numérique pour ça, distincte de
+          # $version qui peut porter un suffixe "-<sha>" (ex. 0.1.0-cc5bc7b
+          # en repli quand aucune version explicite n'est fournie).
+          $numericVersion = ($version -split '-')[0]
+          $fileVersion = "$numericVersion.0"
           New-Item -ItemType Directory -Force -Path "packaging/windows/vst3" | Out-Null
           Copy-Item -Recurse -Force "build/MUVideoPlayerPro_artefacts/Release/VST3/MUVideoPlayerPro.vst3" "packaging/windows/vst3/"
 
@@ -108,7 +114,7 @@ jobs:
           $makensis = Get-Command makensis.exe -ErrorAction SilentlyContinue
           $makensisPath = if ($makensis) { $makensis.Source } else { "C:\Program Files (x86)\NSIS\makensis.exe" }
 
-          & $makensisPath "/DVERSION=$version" "packaging/windows/installer.nsi"
+          & $makensisPath "/DVERSION=$version" "/DFILEVERSION=$fileVersion" "packaging/windows/installer.nsi"
           $setupName = "MUVideoPlayerPro-Setup-v$version.exe"
           echo "SETUP_NAME=$setupName" >> $env:GITHUB_ENV
 
