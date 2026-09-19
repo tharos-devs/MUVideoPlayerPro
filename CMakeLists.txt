@@ -49,6 +49,7 @@ if(WIN32)
         Bcrypt.lib
         Secur32.lib
         ncrypt.lib
+        Crypt32.lib
         Mfplat.lib
         Mfuuid.lib
         Strmiids.lib
