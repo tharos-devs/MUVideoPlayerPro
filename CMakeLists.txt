@@ -37,6 +37,34 @@ if(WIN32)
         list(APPEND FFMPEG_LIBRARIES "${FFMPEG_${component}_LIBRARY}")
     endforeach()
 
+    # FFmpeg est lié statiquement (triplet vcpkg x64-windows-static-md) --
+    # pas de DLL avcodec-*.dll etc. à déployer à côté du plugin, ce que
+    # LoadLibraryW (utilisé par les hôtes VST3, dont MuseScore) ne cherchait
+    # pas de toute façon dans le dossier du plugin lui-même. En statique, il
+    # faut lier explicitement les bibliothèques Windows que FFmpeg utilise en
+    # interne (Media Foundation, DXVA2/D3D11 pour le hardware decode,
+    # Schannel pour TLS, threads Win32...), normalement invisibles derrière
+    # les DLL FFmpeg.
+    list(APPEND FFMPEG_LIBRARIES
+        Bcrypt.lib
+        Secur32.lib
+        ncrypt.lib
+        Mfplat.lib
+        Mfuuid.lib
+        Strmiids.lib
+        dxva2.lib
+        d3d11.lib
+        dxgi.lib
+        ole32.lib
+        oleaut32.lib
+        user32.lib
+        gdi32.lib
+        advapi32.lib
+        ws2_32.lib
+        shlwapi.lib
+        Vfw32.lib
+    )
+
     add_library(PkgConfig::FFMPEG INTERFACE IMPORTED)
     set_target_properties(PkgConfig::FFMPEG PROPERTIES
         INTERFACE_INCLUDE_DIRECTORIES "${FFMPEG_INCLUDE_DIR}"

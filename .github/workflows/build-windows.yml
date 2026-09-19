@@ -65,7 +65,7 @@ jobs:
         run: |
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
-            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
@@ -74,27 +74,6 @@ jobs:
       - name: Run tests
         shell: pwsh
         run: ctest --test-dir build -C Release --output-on-failure
-
-      # Windows n'a pas d'équivalent de rpath -- les DLL FFmpeg doivent être
-      # à côté du binaire du plugin pour être trouvées au chargement.
-      - name: Copy FFmpeg DLLs next to the plugin binary
-        shell: pwsh
-        run: |
-          $vst3BinDir = "build/MUVideoPlayerPro_artefacts/Release/VST3/MUVideoPlayerPro.vst3/Contents/x86_64-win"
-          $vst3BinDirFull = (Resolve-Path $vst3BinDir).Path
-          $patterns = @("avcodec-*.dll", "avformat-*.dll", "avutil-*.dll", "swscale-*.dll", "swresample-*.dll")
-          foreach ($pattern in $patterns) {
-            # Le toolchain vcpkg déploie déjà automatiquement les DLLs de
-            # dépendances à côté du binaire buildé ("applocal" deployment) --
-            # on exclut cette copie déjà en place pour ne pas la copier sur
-            # elle-même.
-            Get-ChildItem -Path . -Recurse -Filter $pattern -File -ErrorAction SilentlyContinue |
-              Where-Object { $_.FullName -notmatch "\\debug\\" -and $_.DirectoryName -ne $vst3BinDirFull } |
-              ForEach-Object {
-                Write-Host "Copie de $($_.FullName)"
-                Copy-Item $_.FullName -Destination $vst3BinDir -Force
-              }
-          }
 
       # Sans le runtime Visual C++ (vcruntime140.dll, msvcp140.dll -- pas
       # fournis par Windows), le plugin échoue à charger sur une machine qui
