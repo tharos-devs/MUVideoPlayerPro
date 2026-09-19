@@ -96,6 +96,15 @@ jobs:
               }
           }
 
+      # Sans le runtime Visual C++ (vcruntime140.dll, msvcp140.dll -- pas
+      # fournis par Windows), le plugin échoue à charger sur une machine qui
+      # ne l'a pas déjà installé, et la plupart des hôtes VST3 l'excluent
+      # alors silencieusement de leur liste au scan, sans erreur visible.
+      # L'installeur l'embarque et le déploie silencieusement (cf. installer.nsi).
+      - name: Download VC++ Redistributable
+        shell: pwsh
+        run: Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "packaging/windows/vc_redist.x64.exe"
+
       - name: Build installer
         shell: pwsh
         run: |
