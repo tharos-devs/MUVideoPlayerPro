@@ -4,9 +4,10 @@
 ; FILEVERSION est une version purement numérique X.X.X.X (requise par
 ; VIProductVersion), distincte de VERSION qui peut porter un suffixe
 ; "-<sha>" en repli.
-; Attend un dossier "vst3\MUVideoPlayerPro.vst3\" et un "vc_redist.x64.exe"
-; à côté de ce script (copiés/téléchargés là par le workflow avant l'appel à
-; makensis).
+; Attend un dossier "vst3\MUVideoPlayerPro.vst3\" à côté de ce script (copié
+; là par le workflow avant l'appel à makensis). Le plugin est lié
+; statiquement (FFmpeg + runtime C++) : aucune dépendance externe à
+; installer.
 
 !ifndef VERSION
   !define VERSION "0.0.0"
@@ -43,16 +44,6 @@ VIAddVersionKey "FileDescription" "MUVideoPlayerPro VST3 installer"
 !insertmacro MUI_LANGUAGE "English"
 
 Section "MUVideoPlayerPro VST3" SecMain
-    ; Runtime Visual C++ requis par le plugin (vcruntime140.dll, msvcp140.dll)
-    ; -- pas fourni par Windows. Sans lui, le plugin échoue à charger et la
-    ; plupart des hôtes VST3 l'excluent silencieusement de leur scan.
-    ; /install /quiet /norestart : silencieux, ne fait rien si déjà présent.
-    SetOutPath "$TEMP"
-    File "vc_redist.x64.exe"
-    DetailPrint "Installation du runtime Visual C++ (silencieuse)..."
-    ExecWait '"$TEMP\vc_redist.x64.exe" /install /quiet /norestart'
-    Delete "$TEMP\vc_redist.x64.exe"
-
     SetOutPath "$INSTDIR"
     File /r "vst3\MUVideoPlayerPro.vst3\*.*"
 

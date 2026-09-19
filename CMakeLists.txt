@@ -1,9 +1,25 @@
 cmake_minimum_required(VERSION 3.22)
 
+# À fixer avant project() pour que CMAKE_MSVC_RUNTIME_LIBRARY (plus bas) soit
+# pris en compte.
+cmake_policy(SET CMP0091 NEW)
+
 project(MUVideoPlayerPro VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Runtime C++ lié statiquement sur Windows (cohérent avec le triplet vcpkg
+# x64-windows-static de FFmpeg, lui aussi statique) : le plugin n'a alors
+# plus aucune dépendance externe à un runtime installé sur la machine cible
+# (vcruntime140.dll/msvcp140.dll), ce qui a posé problème avec un hôte VST3
+# validant les plugins dans un sous-processus au contexte de chargement DLL
+# différent. Doit être fixé avant FetchContent_MakeAvailable(JUCE) pour que
+# les cibles JUCE elles-mêmes héritent du même runtime (mélanger /MT et /MD
+# dans un même binaire est indéfini).
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)

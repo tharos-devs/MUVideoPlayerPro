@@ -65,7 +65,7 @@ jobs:
         run: |
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
-            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
@@ -74,15 +74,6 @@ jobs:
       - name: Run tests
         shell: pwsh
         run: ctest --test-dir build -C Release --output-on-failure
-
-      # Sans le runtime Visual C++ (vcruntime140.dll, msvcp140.dll -- pas
-      # fournis par Windows), le plugin échoue à charger sur une machine qui
-      # ne l'a pas déjà installé, et la plupart des hôtes VST3 l'excluent
-      # alors silencieusement de leur liste au scan, sans erreur visible.
-      # L'installeur l'embarque et le déploie silencieusement (cf. installer.nsi).
-      - name: Download VC++ Redistributable
-        shell: pwsh
-        run: Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "packaging/windows/vc_redist.x64.exe"
 
       - name: Build installer
         shell: pwsh
